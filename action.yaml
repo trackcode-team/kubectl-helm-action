@@ -1,0 +1,6 @@
+name: 'Kubectl Helm Action'
+author: 'TrackCode'
+description: 'A Github action for using kubectl and helm.'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
