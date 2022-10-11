@@ -1,6 +1,72 @@
 name: 'Kubectl Helm Action'
 author: 'TrackCode'
-description: 'A Github action for using kubectl and helm.'
+description: Composite action to easily apply helm charts with kubectl.'
+
+inputs:
+  name:
+    description: "Application name"
+    required: true
+    type: string
+  chart:
+    description: "Path to the chart"
+    required: true
+    type: string
+  namespace:
+    description: "Kubernetes namespace"
+    required: true
+    type: string    
+  values:
+    description: "Helm values, e.g: ./ops/deployments/production.yaml"
+    required: true
+    type: string
+  image-repository:
+    description: "E.g.: eu.gcr.io/trackcode-xxxxxx/app-web"
+    required: true
+    type: string
+  image-tag:
+    description: "Commit SHA hash"
+    required: true
+    type: string
+  kube-config:
+    description: "Kubeconfig YAML file"
+    required: true
+  apply:
+    description: "Apply to Kubernetes"
+    required: false
+    default: false
+
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
+  using: "composite"
+  steps:
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.10.0'
+
+    - name: Generate manifest
+      run: |
+        helm template ${{ inputs.name }} ${{ inputs.chart }} \
+          --namespace ${{ inputs.namespace }} \
+          --set image.repository=${{ inputs.image-repository }} \
+          --set image.tag=${{ inputs.image-tag }} \
+          --values ${{ inputs.values }} \
+          > ./manifest.yaml
+      shell: bash
+
+    - name: Setup Kubectl
+      if: ${{ inputs.apply }}
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.23.12'
+      
+    - name: Set K8s context
+      if: ${{ inputs.apply }}
+      uses: azure/k8s-set-context@v2
+      with:
+        method: kubeconfig
+        kubeconfig: '${{ inputs.kube-config }}'
+
+    - name: Apply manifest
+      if: ${{ inputs.apply }}
+      run: kubectl apply -f ./manifest.yaml
+      shell: bash
